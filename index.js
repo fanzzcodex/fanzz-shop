@@ -1,29 +1,29 @@
-import { spawn } from 'child_process'
+import 'dotenv/config'
+import '../lib/system/config.js'
+import express from 'express'
 import path from 'path'
-import { fileURLToPath } from 'url'
-import { dirname } from 'path'
+import bodyParser from 'body-parser'
+import requestIp from 'request-ip'
+import morgan from 'morgan'
+import cors from 'cors'
+import cookieParser from 'cookie-parser'
+import session from 'cookie-session'
+import createRouter from '../lib/system/defineRoute.js'
 
-// __dirname equivalent in ESM modules
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const app = express()
 
-function start() {
-   const args = [path.join(__dirname, 'app.js'), ...process.argv.slice(2)]
-   const p = spawn(process.argv[0], args, {
-      stdio: ['inherit', 'inherit', 'inherit', 'ipc']
-   })
+app
+   .set('json spaces', 3)
+   .set('trust proxy', 1)
+   .use(express.json())
+   .use(requestIp.mw())
+   .use(morgan('dev'))
+   .use(bodyParser.json({ limit: '50mb' }))
+   .use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 50000 }))
+   .use(session({ name: 'token', keys: ['session'], maxAge: 72 * 60 * 60 * 1000 }))
+   .use(cookieParser())
+   .use(cors())
 
-   p.on('message', data => {
-      if (data === 'reset') {
-         console.log('Restarting...')
-         p.kill()
-      }
-   })
+await (new createRouter(app)).load(path.join(process.cwd(), 'routers'))
 
-   p.on('exit', code => {
-      console.error('Exited with code:', code)
-      start()
-   })
-}
-
-start()
+export default app
